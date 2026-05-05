@@ -1,6 +1,7 @@
 library(tidyverse)
 library(lubridate)
 library(stringi)
+library(ggrepel)
 
 #load in all the text files and convert to csv that we can analyze 
 tbl <-
@@ -127,7 +128,7 @@ all_comp_csv=loop_setup%>%
 current_date=Sys.Date()
 all_comp_name=(paste0("results/all_comparisions_",current_date,".csv"))
 
-write.csv(all_comp_csv,all_comp_name,row.names = FALSE)
+#write.csv(all_comp_csv,all_comp_name,row.names = FALSE)
 
 
 ###LETS GET SOME ANALYSES GOING 
@@ -176,6 +177,41 @@ check_tags=c("adolescent",
 )
 #####
 
+####Population Groups####
+pop_groups=str_to_lower(c("African People",
+             "North African People",
+             "Sub-Saharan African People",
+             "Asian People",
+             "Asian",
+             "Central Asian People",
+             "East Asian People",
+             "North Asian People",
+             "Southeast Asian People",
+             "West Asian People",
+             "Black People",
+             "Black or African American",
+             "Caribbean People",
+             "Central American People",
+             "Indians, Central American",
+             "Ethnic and Racial Minorities",
+             "European People",
+             "Eastern European People",
+             "Scandinavians and Nordic People",
+             "Middle Eastern and North Africans",
+             "Arabs",
+             "Middle Eastern People",
+             "North African People",
+             "North American People",
+             "American Indian or Alaska Native",
+             "Population Groups, US",
+             "Oceanians",
+             "Australasian People",
+             "South American People",
+             "Indians, South American",
+             "White People",
+             "White"))
+#####
+
 #what we have below shows whether or not there was an actual heading change or not 
 all_changes_summary=all_comp_csv%>%
   ungroup()%>%
@@ -214,7 +250,7 @@ headingtype_changes=all_comp_csv%>%
   drop_na(value)%>%
   mutate(value=as.list(strsplit(value, ",")))%>%
   unnest_longer(value)%>%
-  separate(value,into=c("heading","subheading_1","subheading_2","subheading_3","subheading_4","subheading_5"),sep=":")%>%
+  separate(value,into=c("heading","subheading_1","subheading_2","subheading_3","subheading_4","subheading_5","subheading_6"),sep=":")%>%
   dplyr::select(PMID,name,heading)%>%
   mutate(heading=str_to_lower(str_squish(heading)))%>%
   mutate(check_tag=ifelse(heading %in% check_tags,"Yes","No"))%>%
@@ -272,7 +308,7 @@ all_original_headings=tbl%>%
   dplyr::filter(type=="all")%>%
   dplyr::select(-type)%>%
   unnest_longer(term)%>%
-  separate(term,into=c("heading","subheading_1","subheading_2","subheading_3","subheading_4","subheading_5","subheading_6"),sep=":")%>%
+  separate(term,into=c("heading","subheading_1","subheading_2","subheading_3","subheading_4","subheading_5","subheading_6","suhbeading_7"),sep=":")%>%
   dplyr::select(PMID,heading)%>%
   mutate(heading=str_to_lower(str_squish(heading)))%>%
   group_by(heading)%>%
@@ -358,6 +394,7 @@ Terms_per_indexing_type=tbl%>%
   dplyr::select(PMID,Indexing,all_mesh)%>%
   mutate(all_mesh=stri_replace_last_fixed(all_mesh,"_",";"))%>%
   separate(all_mesh,into=c("all","major_topic"),sep=";")%>%
+  drop_na(Indexing)%>%
   pivot_longer(cols=c(3:4),names_to = "type",values_to = "term")%>%
   drop_na(term)%>%
   drop_na(Indexing)%>%
@@ -365,8 +402,12 @@ Terms_per_indexing_type=tbl%>%
   dplyr::filter(type=="all")%>%
   dplyr::select(-type)%>%
   unnest_longer(term)%>%
-  separate(term,into=c("heading","subheading"),sep=":")%>%
-  dplyr::select(-subheading)%>%
+  separate(term,into=c("heading","subheading_1","subheading_2","subheading_3","subheading_4","subheading_5","subheading_6","subheading_7"),sep=":")%>%
+  pivot_longer(cols=c(4:10),names_to = "sh_type")%>%
+  dplyr::select(-sh_type)%>%
+  unite(heading_sh_combo,heading,value,sep="/",na.rm = T,remove = F)%>%
+  distinct()%>%
+  dplyr::select(PMID,Indexing,heading)%>%
   distinct()%>%
   group_by(Indexing,heading)%>%
   count()%>%
@@ -551,23 +592,24 @@ check_tag_plot
 ggsave("results/plots/change_timeline.png",plot=check_tag_plot,height = 18.2, width =30, units = "cm")
 
 indexing_added_plot=final_indexing_added%>%
-  dplyr::select(heading,check_tag,is_topic,added_percentage)%>%
-  pivot_longer(cols=c(2:3),names_to = "type",values_to = "test")%>%
-  mutate(fill_label=ifelse(type=="check_tag" & test=="Yes","Check Tag",ifelse(type=="is_topic" & test =="Yes","As Topic","Regular Heading")))%>%
+  mutate(population=ifelse(heading %in% pop_groups,"Yes","No"))%>%
+  dplyr::select(heading,population,check_tag,is_topic,added_percentage)%>%
+  pivot_longer(cols=c(2:4),names_to = "type",values_to = "test")%>%
+  mutate(fill_label=ifelse(type=="check_tag" & test=="Yes","Check Tag",ifelse(type=="is_topic" & test =="Yes","As Topic",ifelse(type=="population" & test=="Yes","Population Groups","Regular Heading"))))%>%
   mutate(alpha_fill=ifelse(fill_label=="Regular Heading","alpha","no_alpha"))%>%
   dplyr::filter(added_percentage!=0)%>%
-  mutate(text_label=ifelse(type=="is_topic" & test=="Yes",heading,""))%>%
+  mutate(text_label=ifelse(type=="is_topic" & test=="Yes",heading,ifelse(type=="population" & test=="Yes",heading,"")))%>%
   ggplot(aes(x=reorder(heading,-added_percentage),y=added_percentage,fill=fill_label,alpha=alpha_fill))+
   geom_bar(position="dodge2",stat = "identity")+
-  geom_text(aes(label=text_label),angle=45,hjust=0,size=4)+
+  geom_text(aes(label=text_label),angle=45,hjust=0,size=3)+
   xlab("Heading")+
   ylab("How often does the term appear \nafter curation? (%)")+
   scale_y_continuous(expand=c(0,0),limits = c(0,100))+
-  scale_fill_manual(values=c("#F707A4","#282F50","gray"),labels=c("As Topic","Check Tag","Regular Heading"),name="MeSH Type")+
+  scale_fill_manual(values=c("#F707A4","#282F50","#59C6C8","gray"),labels=c("As Topic","Check Tag","Population Groups","Regular Heading"),name="MeSH Type")+
   scale_alpha_manual(values=c(0.25,1),guide="none")+
   theme_bw()+
   theme(panel.grid.major = element_blank(),
-        legend.position = "right",
+        legend.position = "bottom",
         legend.title.align=0.5,
         plot.title = element_text(hjust = 0.5),
         axis.text.x = element_blank(),
@@ -578,18 +620,23 @@ indexing_added_plot
 
 ggsave("results/plots/added_terms.png",plot=indexing_added_plot,height = 18.2, width =30, units = "cm")
 
-##THIS ONE IS CURRENTLY NOT SAVED ANYWHERE BECAUSE ITS BORING 
+
 indexing_removed_plot=orignal_indexing_removed%>%
-  dplyr::select(heading,check_tag,is_topic,removed_percentage)%>%
-  pivot_longer(cols=c(2:3),names_to = "type",values_to = "test")%>%
-  mutate(fill_label=paste(type,test))%>%
+  mutate(population=ifelse(heading %in% pop_groups,"Yes","No"))%>%
+  dplyr::select(heading,check_tag,is_topic,population,removed_percentage)%>%
+  pivot_longer(cols=c(2:4),names_to = "type",values_to = "test")%>%
+  mutate(fill_label=ifelse(type=="check_tag" & test=="Yes","Check Tag",ifelse(type=="is_topic" & test =="Yes","As Topic",ifelse(type=="population" & test=="Yes","Population Groups","Regular Heading"))))%>%
+  mutate(alpha_fill=ifelse(fill_label=="Regular Heading","alpha","no_alpha"))%>%
   dplyr::filter(removed_percentage!=0)%>%
-  mutate(text_label=ifelse(test=="Yes",heading,""))%>%
-  ggplot(aes(x=reorder(heading,-removed_percentage),y=removed_percentage,fill=fill_label))+
+  mutate(text_label=ifelse(type=="is_topic" & test=="Yes",heading,ifelse(type=="population" & test=="Yes",heading,"")))%>%
+  ggplot(aes(x=reorder(heading,-removed_percentage),y=removed_percentage,fill=fill_label,alpha=alpha_fill))+
   geom_bar(position="dodge2",stat = "identity")+
-  geom_text(aes(label=text_label),angle=45,hjust=0,size=4)+
-  scale_y_continuous(expand=c(0,0),limits = c(0,125))+
-  scale_fill_manual(values=c("lightgrey","hotpink","lightgrey","green"))+
+  geom_text(aes(label=text_label),angle=45,hjust=0,size=3)+
+  xlab("Heading")+
+  ylab("How often does the term dissapear \nafter curation? (%)")+
+  scale_y_continuous(expand=c(0,0),limits = c(0,100))+
+  scale_fill_manual(values=c("#F707A4","#282F50","#59C6C8","gray"),labels=c("As Topic","Check Tag","Population Groups","Regular Heading"),name="MeSH Type")+
+  scale_alpha_manual(values=c(0.25,1),guide="none")+
   theme_bw()+
   theme(panel.grid.major = element_blank(),
         legend.position = "bottom",
@@ -599,3 +646,4 @@ indexing_removed_plot=orignal_indexing_removed%>%
         axis.ticks.x = element_blank())
 
 indexing_removed_plot
+ggsave("results/plots/removed_terms.png",plot=indexing_removed_plot,height = 18.2, width =30, units = "cm")
