@@ -133,46 +133,7 @@ all_comp_name=(paste0("results/all_comparisions_",current_date,".csv"))
 
 ###LETS GET SOME ANALYSES GOING 
 ###Check tags####
-check_tags=c("adolescent",
-             "adult",
-             "aged",
-             "aged 80 and over",
-             "animals",
-             "bees",
-             "cats",
-             "cattle",
-             "chlorocebus aethiops",
-             "chick embryo",
-             "child",
-             "child preschool",
-             "dogs",
-             "female",
-             "guinea pigs",
-             "cricetinae",
-             "history of medicine",
-             "horses",
-             "humans",
-             "infant",
-             "infant, newborn",
-             "male",
-             "middle aged",
-             "pregnancy",
-             "rabbits",
-             "sheep",
-             "swine",
-             "united states",
-             "history 15th century",
-             "history 16th century",
-             "history 17th century",
-             "history 18th century",
-             "history 19th century",
-             "history 20th century",
-             "history 21st century",
-             "history ancient",
-             "history medieval",
-             "mice",
-             "rats",
-             "young adult"
+check_tags=c(
              
 )
 #####
