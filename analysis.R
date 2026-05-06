@@ -186,9 +186,13 @@ for(i in 1:nrow(weird_loop_setup)) { #for every row in the dataframe, do this:
 
 weird_comp_csv=weird_loop_setup%>%
   dplyr::select(PMID,"v1"="1","v2"="2","v3"="3","v4"="4","v5"="5","v6"="6","v1_v2"="...8","v2_v3"="...9","v3_v4"="...10","v4_v5"="...11","v5_v6"="...12")%>%
-  mutate(across(everything(), toString(.)))
+  mutate(v5_v6=ifelse(is.na(v6),"Not Applicable",v5_v6))%>%
+  mutate(v4_v5=ifelse(is.na(v5),"Not Applicable",v4_v5))%>%
+  mutate(v3_v4=ifelse(is.na(v4),"Not Applicable",v3_v4))%>%
+  mutate(v2_v3=ifelse(is.na(v3),"Not Applicable",v2_v3))%>%
+  mutate(across(everything(), as.character))
 
-write.csv(weird_comp_csv,"results/weird_comp_TEST.csv",row.names = FALSE)
+write.csv(weird_comp_csv,"results/weird_comp_TEST2.csv",row.names = FALSE)
 
 ###LETS GET SOME ANALYSES GOING 
 ###Check tags####
