@@ -1,7 +1,7 @@
 library(tidyverse)
 library(lubridate)
 library(stringi)
-library(ggrepel)
+
 
 #load in all the text files and convert to csv that we can analyze 
 tbl <-
@@ -63,7 +63,10 @@ flowchart_weird_pmid=length(unique(weird_pmid))
 
 #get the date of the data pull where the change occurred
 change_date=tbl%>%
-  dplyr::select(file_path,PMID,Indexing,DateRevised)%>% #select columns
+  dplyr::select(file_path,PMID,Indexing,DateRevised)%>% 
+  mutate(test=ifelse(nchar(DateRevised)==10,DateRevised,"fix"))%>%
+  mutate(DateRevised=ifelse(test=="fix",NA,DateRevised))%>%
+  mutate(DateRevised=as.Date(DateRevised,format="%Y-%m-%d"))%>%#select columns
   dplyr::filter(PMID %in% change_pmid)%>%
   mutate(date_collected=str_sub(file_path,-12,-5))%>%
   dplyr::select(PMID,date_collected,DateRevised,Indexing)%>%
@@ -128,14 +131,68 @@ all_comp_csv=loop_setup%>%
 current_date=Sys.Date()
 all_comp_name=(paste0("results/all_comparisions_",current_date,".csv"))
 
-#write.csv(all_comp_csv,all_comp_name,row.names = FALSE)
+write.csv(all_comp_csv,all_comp_name,row.names = FALSE)
 
+
+
+#trying things out with just the weird PMIDS
+#get the data set up for the loops 
+  
+
+weird_loop_setup=indexing_change%>%
+  filter(PMID %in% weird_pmid)%>%
+  left_join(tbl,by="PMID")%>%
+  mutate(test=ifelse(nchar(DateRevised)==10,DateRevised,"fix"))%>%
+  mutate(all_mesh=ifelse(test=="fix",DateRevised,all_mesh))%>%
+  mutate(DateRevised=as.Date(DateRevised,format="%Y-%m-%d"))%>%
+  dplyr::select(PMID,DateRevised,Indexing,all_mesh)%>%
+  drop_na(all_mesh)%>%
+  distinct()%>%
+  group_by(PMID)%>%
+  mutate(indexing_version=rank(DateRevised))%>%
+  ungroup()%>%
+  mutate(all_mesh=gsub(",","",all_mesh))%>%
+  distinct()%>%
+  mutate(all_mesh=stri_replace_last_fixed(all_mesh,"_",";"))%>%
+  separate(all_mesh,into=c("all","major_topic"),sep=";")%>%
+  dplyr::select(-major_topic)%>%
+  drop_na(all)%>%
+  mutate(all= as.list(strsplit(all, "_")))%>%
+  distinct()%>%
+  mutate(indexing_version=as.character(indexing_version))%>%
+  mutate(indexing_version=ifelse(PMID=="40903099"& Indexing=="Automated","1",ifelse(PMID=="40903099"& Indexing=="Curated","2",indexing_version)))%>%
+  pivot_wider(id_cols=PMID,names_from=indexing_version,values_from=all,values_fill = list(NA))%>%
+  dplyr::select(PMID,"1","2","3","4","5","6")
+ 
+for(i in 1:nrow(weird_loop_setup)) { #for every row in the dataframe, do this: 
+  v1=unlist(weird_loop_setup[i,2])
+  v2=unlist(weird_loop_setup[i,3])
+  v3=unlist(weird_loop_setup[i,4])
+  v4=unlist(weird_loop_setup[i,5])
+  v5=unlist(weird_loop_setup[i,6])
+  v6=unlist(weird_loop_setup[i,7])
+  v1_v2=setdiff(v2,v1)
+  v2_v3=setdiff(v3,v2)
+  v3_v4=setdiff(v3,v4)
+  v4_v5=setdiff(v4,v5)
+  v5_v6=setdiff(v5,v6)
+  weird_loop_setup[i,8]=toString(v1_v2)
+  weird_loop_setup[i,9]=toString(v2_v3)
+  weird_loop_setup[i,10]=toString(v3_v4)
+  weird_loop_setup[i,11]=toString(v4_v5)
+  weird_loop_setup[i,12]=toString(v5_v6)
+  
+}#CLOSE LOOP 
+
+weird_comp_csv=weird_loop_setup%>%
+  dplyr::select(PMID,"v1"="1","v2"="2","v3"="3","v4"="4","v5"="5","v6"="6","v1_v2"="...8","v2_v3"="...9","v3_v4"="...10","v4_v5"="...11","v5_v6"="...12")%>%
+  mutate(across(everything(), toString(.)))
+
+write.csv(weird_comp_csv,"results/weird_comp_TEST.csv",row.names = FALSE)
 
 ###LETS GET SOME ANALYSES GOING 
 ###Check tags####
-check_tags=c(
-             
-)
+check_tags=c("adolescent", "adult", "aged", "aged 80 and over", "animals", "bees", "cats", "cattle", "chlorocebus aethiops", "chick embryo", "child", "child preschool", "dogs", "female", "guinea pigs", "cricetinae", "history of medicine", "horses", "humans", "infant", "infant, newborn", "male", "middle aged", "pregnancy", "rabbits", "sheep", "swine", "united states", "history 15th century", "history 16th century", "history 17th century", "history 18th century", "history 19th century", "history 20th century", "history 21st century", "history ancient", "history medieval", "mice", "rats", "young adult")
 #####
 
 ####Population Groups####
@@ -531,7 +588,84 @@ titles_abstract=read.csv("gallerystuff/TitleAbstract_All.csv",header = FALSE)%>%
 
 write.csv(titles_abstract,"gallerystuff/TitlesAbstracts_Changed.csv",row.names = FALSE)
 
+rosie_pmid_check=c("40888291",
+                   "40888362",
+                   "40888685",
+                   "40888925",
+                   "40889068",
+                   "40889534",
+                   "40889545",
+                   "40890575",
+                   "40890737",
+                   "40890775",
+                   "40890879",
+                   "40891166",
+                   "40891793",
+                   "40892102",
+                   "40892261",
+                   "40892412",
+                   "40892465",
+                   "40892511",
+                   "40892532",
+                   "40892617",
+                   "40896880",
+                   "40897122",
+                   "40897481",
+                   "40897491",
+                   "40897497",
+                   "40897499",
+                   "40897513",
+                   "40897749",
+                   "40897855",
+                   "40897873",
+                   "40898319",
+                   "40898442",
+                   "40898467",
+                   "40898533",
+                   "40898572",
+                   "40898742",
+                   "40898975",
+                   "40899152",
+                   "40899193",
+                   "40899645",
+                   "40900110",
+                   "40900360",
+                   "40900504",
+                   "40900607",
+                   "40900629",
+                   "40900633",
+                   "40901800",
+                   "40901901",
+                   "40902200",
+                   "40902553",
+                   "40902883",
+                   "40903099",
+                   "40903476",
+                   "40903716",
+                   "40905232",
+                   "40905237",
+                   "40905264",
+                   "40905717",
+                   "40905870",
+                   "40906494",
+                   "40906535",
+                   "40906720",
+                   "40906953",
+                   "40907527",
+                   "40907711",
+                   "40907712",
+                   "40908353",
+                   "40909225",
+                   "40910331",
+                   "40911013",
+                   "40911086",
+                   "40911638",
+                   "40912004",
+                   "40912312",
+                   "40912314",
+                   "40912703")
 
+rosie_pmid_check %in% weird_pmid
 #PLOTS AND FIGURES 
 
 check_tag_plot=ggplot(correction_time_for_headings, aes(x=(axis_label),y=percentage_sum,fill=check_tag))+
