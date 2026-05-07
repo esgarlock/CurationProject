@@ -118,20 +118,7 @@ for(i in 1:nrow(loop_setup)) { #for every row in the dataframe, do this:
 
 ##Get this into a csv format 
 
-all_comp_csv=loop_setup%>%
-  left_join(indexing_change,by="PMID")%>%
-  dplyr::select(PMID,"orig_status"="start.y","update_status"="end.y","orig_index"="start.x","update_index"="end.x","orig_not_update"="...4","update_not_orig"="...5")%>%
-  mutate(orig_index = sapply(orig_index, toString))%>%
-  mutate(update_index = sapply(update_index, toString))%>%
-  mutate(orig_not_update = sapply(orig_not_update, toString))%>%
-  mutate(update_not_orig = sapply(update_not_orig, toString))%>%
-  left_join(change_date,by="PMID")%>%
-  dplyr::select(PMID,orig_status,update_status,date_collected,DateRevised,orig_index,update_index,orig_not_update,update_not_orig)
 
-current_date=Sys.Date()
-all_comp_name=(paste0("results/all_comparisions_",current_date,".csv"))
-
-write.csv(all_comp_csv,all_comp_name,row.names = FALSE)
 
 
 
@@ -150,6 +137,8 @@ weird_loop_setup=indexing_change%>%
   distinct()%>%
   group_by(PMID)%>%
   mutate(indexing_version=rank(DateRevised))%>%
+  dplyr::filter(indexing_version==1 | indexing_version==max(indexing_version))%>%
+  mutate(indexing_version=ifelse(indexing_version==1,"start","end"))%>%
   ungroup()%>%
   mutate(all_mesh=gsub(",","",all_mesh))%>%
   distinct()%>%
@@ -159,40 +148,40 @@ weird_loop_setup=indexing_change%>%
   drop_na(all)%>%
   mutate(all= as.list(strsplit(all, "_")))%>%
   distinct()%>%
-  mutate(indexing_version=as.character(indexing_version))%>%
-  mutate(indexing_version=ifelse(PMID=="40903099"& Indexing=="Automated","1",ifelse(PMID=="40903099"& Indexing=="Curated","2",indexing_version)))%>%
-  pivot_wider(id_cols=PMID,names_from=indexing_version,values_from=all,values_fill = list(NA))%>%
-  dplyr::select(PMID,"1","2","3","4","5","6")
+  pivot_wider(id_cols=PMID,values_from = all,names_from = indexing_version)%>%
+  dplyr::select(PMID,start,end)
+ 
  
 for(i in 1:nrow(weird_loop_setup)) { #for every row in the dataframe, do this: 
-  v1=unlist(weird_loop_setup[i,2])
-  v2=unlist(weird_loop_setup[i,3])
-  v3=unlist(weird_loop_setup[i,4])
-  v4=unlist(weird_loop_setup[i,5])
-  v5=unlist(weird_loop_setup[i,6])
-  v6=unlist(weird_loop_setup[i,7])
-  v1_v2=setdiff(v2,v1)
-  v2_v3=setdiff(v3,v2)
-  v3_v4=setdiff(v3,v4)
-  v4_v5=setdiff(v4,v5)
-  v5_v6=setdiff(v5,v6)
-  weird_loop_setup[i,8]=toString(v1_v2)
-  weird_loop_setup[i,9]=toString(v2_v3)
-  weird_loop_setup[i,10]=toString(v3_v4)
-  weird_loop_setup[i,11]=toString(v4_v5)
-  weird_loop_setup[i,12]=toString(v5_v6)
+  w_start_all=unlist(weird_loop_setup[i,2])
+  w_end_all=unlist(weird_loop_setup[i,3])
+  w_start_not_end_all=setdiff(w_start_all,w_end_all)
+  w_end_not_start_all=setdiff(w_end_all,w_start_all)
+  weird_loop_setup[i,4]=toString(w_start_not_end_all)
+  weird_loop_setup[i,5]=toString(w_end_not_start_all)
   
 }#CLOSE LOOP 
 
-weird_comp_csv=weird_loop_setup%>%
-  dplyr::select(PMID,"v1"="1","v2"="2","v3"="3","v4"="4","v5"="5","v6"="6","v1_v2"="...8","v2_v3"="...9","v3_v4"="...10","v4_v5"="...11","v5_v6"="...12")%>%
-  mutate(v5_v6=ifelse(is.na(v6),"Not Applicable",v5_v6))%>%
-  mutate(v4_v5=ifelse(is.na(v5),"Not Applicable",v4_v5))%>%
-  mutate(v3_v4=ifelse(is.na(v4),"Not Applicable",v3_v4))%>%
-  mutate(v2_v3=ifelse(is.na(v3),"Not Applicable",v2_v3))%>%
-  mutate(across(everything(), as.character))
 
-write.csv(weird_comp_csv,"results/weird_comp_TEST2.csv",row.names = FALSE)
+
+all_comp_csv=rbind(loop_setup,weird_loop_setup)%>%
+  left_join(indexing_change,by="PMID")%>%
+  dplyr::select(PMID,"orig_status"="start.y","update_status"="end.y","orig_index"="start.x","update_index"="end.x","orig_not_update"="...4","update_not_orig"="...5")%>%
+  mutate(orig_index = sapply(orig_index, toString))%>%
+  mutate(update_index = sapply(update_index, toString))%>%
+  mutate(orig_not_update = sapply(orig_not_update, toString))%>%
+  mutate(update_not_orig = sapply(update_not_orig, toString))%>%
+  left_join(change_date,by="PMID")%>%
+  mutate(MultipleRevisions=ifelse(PMID %in% weird_pmid,"Multiple Revisions",NA))%>%
+  dplyr::select(PMID,orig_status,update_status,MultipleRevisions,date_collected,DateRevised,orig_index,update_index,orig_not_update,update_not_orig)
+ 
+
+current_date=Sys.Date()
+all_comp_name=(paste0("results/all_comparisions_",current_date,".csv"))
+
+write.csv(all_comp_csv,all_comp_name,row.names = FALSE)
+  
+
 
 ###LETS GET SOME ANALYSES GOING 
 ###Check tags####
@@ -587,8 +576,8 @@ mutate(check_tag=ifelse(heading_sh_combo %in% check_tags,"Yes","No"))%>%
 
 titles_abstract=read.csv("gallerystuff/TitleAbstract_All.csv",header = FALSE)%>%
   separate(V1,into=c("PMID","Title","Abstract","Extra"),sep="\\|",extra="warn",fill="warn")%>%
-  dplyr::filter(PMID %in% change_pmid)%>%
-  dplyr::filter(!PMID %in% weird_pmid)
+  dplyr::filter(PMID %in% change_pmid)
+  dplyr::filter(PMID %in% weird_pmid)
 
 write.csv(titles_abstract,"gallerystuff/TitlesAbstracts_Changed.csv",row.names = FALSE)
 
@@ -746,3 +735,6 @@ indexing_removed_plot=orignal_indexing_removed%>%
 
 indexing_removed_plot
 ggsave("results/plots/removed_terms.png",plot=indexing_removed_plot,height = 18.2, width =30, units = "cm")
+
+
+
