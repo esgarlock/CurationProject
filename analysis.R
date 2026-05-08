@@ -179,7 +179,7 @@ all_comp_csv=rbind(loop_setup,weird_loop_setup)%>%
 current_date=Sys.Date()
 all_comp_name=(paste0("results/all_comparisions_",current_date,".csv"))
 
-write.csv(all_comp_csv,all_comp_name,row.names = FALSE)
+#write.csv(all_comp_csv,all_comp_name,row.names = FALSE)
   
 
 
@@ -737,4 +737,37 @@ indexing_removed_plot
 ggsave("results/plots/removed_terms.png",plot=indexing_removed_plot,height = 18.2, width =30, units = "cm")
 
 
-#we need 3 numbers: number of times
+#we need 3 numbers: number of times robot assigned term, number of times it had to be removed, number of times it had to be added
+
+waterfall_charts=all_original_headings%>%
+  dplyr::filter(grepl("as topic",heading))%>%
+  left_join(added_removal_summary,by="heading")%>%
+  dplyr::select(heading,n,added,removed,sum)%>%
+  mutate(added=ifelse(is.na(added),0,added))%>%
+  mutate(removed=ifelse(is.na(removed),0,removed))%>%
+  mutate(sum=ifelse(is.na(sum),0,sum))%>%
+  dplyr::filter(!sum==0)%>%
+  dplyr::select(-sum)%>%
+  arrange(desc(n))%>%
+  rownames_to_column(var="group_id")%>%
+  pivot_longer(cols=c(4:5))%>%
+  mutate(min=ifelse(name=="removed",n-value,n))%>%
+  mutate(max=ifelse(name=="removed",n,n+value))%>%
+  dplyr::select(-value)%>%
+  mutate(group_id=as.numeric(group_id))%>%
+  rownames_to_column(var="x_pos")%>%
+  mutate(x_pos=as.numeric(x_pos))%>%
+  ggplot(aes(x=heading))+
+  geom_rect(aes(x=heading,
+                xmin=group_id-0.25,
+                xmax=group_id+0.25,
+                ymin=max,
+                ymax=min,
+                fill=name))+
+  geom_rect(aes(x=heading,
+                xmin=group_id-0.3,
+                xmax=group_id+0.3,
+                ymin=n,
+                ymax=n), colour="black")
+  
+waterfall_charts
