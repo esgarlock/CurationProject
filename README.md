@@ -1,6 +1,16 @@
 # CurationProject
 
-Hello! 
+  Anecdotes about questionable MEDLINE indexing circulate among health/medical librarians, and the National Library of Medicine works to curate them. On the basis of external librarian feedback, ‘red flags’ no longer automatically results in the MeSH ‘Emblems and Insignia’; ‘sex assigned at birth’ no longer invokes ‘Infant’.
+“As of April 2022, all journals indexed for MEDLINE are done by automated indexing, with human review and curation of results as appropriate.”  
+  
+We seek to illuminate the character of this curation, as details are challenging to access. A record’s indexing can change from one day to the next, with no indication of changes other than the Modification Date-[LR] field. Search retrieval may be impacted by reindexing; the status quo of obscurity leaves users in the dark.  
+  
+Using the NLM e-utilities API, we downloaded every record added to PubMed over five days (n = 25,439), and continue to re-download them regularly. Scripts were implemented in R to identify records that changed method-of-indexing and isolate any MeSH added or removed. We summarize and describe this data.  
+  
+We present the world’s first public PubMed indexing changelog. This work is fundamental to gauging the impacts of changes-to-indexing on search results; these changes constitute data points for future research. Reindexing is metadata errata; greater accessibility and transparency empower users to engage more fully with literature platforms.
+
+
+## Files
 
 CSV: [Most Recent Comparison Document](results/all_comparisions_2026-05-06.csv) (includes indexing methods and indexing revision date for gallery)  
 CSV: [Titles and Abstracts for Gallery](https://github.com/esgarlock/CurationProject/blob/80ff762a73828220350c1cd8f178135fe25daf93/gallerystuff/TitlesAbstracts_Changed.csv)  
