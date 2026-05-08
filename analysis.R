@@ -63,13 +63,13 @@ flowchart_weird_pmid=length(unique(weird_pmid))
 
 #get the date of the data pull where the change occurred
 change_date=tbl%>%
-  dplyr::select(file_path,PMID,Indexing,DateRevised)%>% 
+  dplyr::select(file_path,PMID,Indexing,DateCompleted,DateRevised)%>% 
   mutate(test=ifelse(nchar(DateRevised)==10,DateRevised,"fix"))%>%
   mutate(DateRevised=ifelse(test=="fix",NA,DateRevised))%>%
   mutate(DateRevised=as.Date(DateRevised,format="%Y-%m-%d"))%>%#select columns
   dplyr::filter(PMID %in% change_pmid)%>%
   mutate(date_collected=str_sub(file_path,-12,-5))%>%
-  dplyr::select(PMID,date_collected,DateRevised,Indexing)%>%
+  dplyr::select(PMID,date_collected,DateCompleted,DateRevised,Indexing)%>%
   mutate(date_collected=mdy(date_collected))%>%
   drop_na(Indexing)%>%
   group_by(PMID,Indexing)%>%
@@ -173,7 +173,7 @@ all_comp_csv=rbind(loop_setup,weird_loop_setup)%>%
   mutate(update_not_orig = sapply(update_not_orig, toString))%>%
   left_join(change_date,by="PMID")%>%
   mutate(MultipleRevisions=ifelse(PMID %in% weird_pmid,"Multiple Revisions",NA))%>%
-  dplyr::select(PMID,orig_status,update_status,MultipleRevisions,date_collected,DateRevised,orig_index,update_index,orig_not_update,update_not_orig)
+  dplyr::select(PMID,orig_status,update_status,MultipleRevisions,DateCompleted,DateRevised,orig_index,update_index,orig_not_update,update_not_orig)
  
 
 current_date=Sys.Date()
@@ -737,4 +737,4 @@ indexing_removed_plot
 ggsave("results/plots/removed_terms.png",plot=indexing_removed_plot,height = 18.2, width =30, units = "cm")
 
 
-
+#we need 3 numbers: number of times
