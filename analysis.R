@@ -739,8 +739,80 @@ ggsave("results/plots/removed_terms.png",plot=indexing_removed_plot,height = 18.
 
 #we need 3 numbers: number of times robot assigned term, number of times it had to be removed, number of times it had to be added
 
-waterfall_charts=all_original_headings%>%
-  dplyr::filter(grepl("as topic",heading))%>%
+original_automated_pmid_df=tbl%>%
+  dplyr::filter(Indexing=="Automated")%>%
+  dplyr::select(file_path,PMID,Indexing,all_mesh)%>%
+  mutate(date=str_sub(file_path,-12,-5))%>%
+  mutate(date=mdy(date))%>%
+  dplyr::select(date,PMID,all_mesh)%>%
+  drop_na(all_mesh)%>%
+  group_by(PMID)%>%
+  mutate(rank = rank(date))%>%
+  dplyr::filter(rank==1)%>%
+  dplyr::select(PMID)%>%
+  distinct()
+
+original_automated_pmids=original_automated_pmid_df$PMID
+
+original_automated_headings=tbl%>%
+  dplyr::filter(Indexing=="Automated")%>%
+  dplyr::select(file_path,PMID,Indexing,all_mesh)%>%
+  mutate(date=str_sub(file_path,-12,-5))%>%
+  mutate(date=mdy(date))%>%
+  dplyr::select(date,PMID,all_mesh)%>%
+  drop_na(all_mesh)%>%
+  group_by(PMID)%>%
+  mutate(rank = rank(date))%>%
+  dplyr::filter(rank==1)%>%
+  dplyr::select(PMID,all_mesh)%>%
+  mutate(all_mesh=gsub(",","",all_mesh))%>%
+  distinct()%>%
+  mutate(all_mesh=stri_replace_last_fixed(all_mesh,"_",";"))%>%
+  separate(all_mesh,into=c("all","major_topic"),sep=";")%>%
+  pivot_longer(cols=c(2:3),names_to = "type",values_to = "term")%>%
+  drop_na(term)%>%
+  mutate(term= as.list(strsplit(term, "_")))%>%
+  dplyr::filter(type=="all")%>%
+  dplyr::select(-type)%>%
+  unnest_longer(term)%>%
+  separate(term,into=c("heading","subheading_1","subheading_2","subheading_3","subheading_4","subheading_5","subheading_6","suhbeading_7"),sep=":")%>%
+  dplyr::select(PMID,heading)%>%
+  mutate(heading=str_to_lower(str_squish(heading)))%>%
+  group_by(heading)%>%
+  count()
+
+
+
+final_automated_headings=tbl%>%
+  dplyr::filter(PMID %in% original_automated_pmids)%>%
+  dplyr::select(file_path,PMID,Indexing,all_mesh)%>%
+  mutate(date=str_sub(file_path,-12,-5))%>%
+  mutate(date=mdy(date))%>%
+  dplyr::select(date,PMID,all_mesh)%>%
+  drop_na(all_mesh)%>%
+  group_by(PMID)%>%
+  mutate(rank = rank(date))%>%
+  dplyr::filter(rank==max(rank))%>%
+  dplyr::select(PMID,all_mesh)%>%
+  mutate(all_mesh=gsub(",","",all_mesh))%>%
+  distinct()%>%
+  mutate(all_mesh=stri_replace_last_fixed(all_mesh,"_",";"))%>%
+  separate(all_mesh,into=c("all","major_topic"),sep=";")%>%
+  pivot_longer(cols=c(2:3),names_to = "type",values_to = "term")%>%
+  drop_na(term)%>%
+  mutate(term= as.list(strsplit(term, "_")))%>%
+  dplyr::filter(type=="all")%>%
+  dplyr::select(-type)%>%
+  unnest_longer(term)%>%
+  separate(term,into=c("heading","subheading_1","subheading_2","subheading_3","subheading_4","subheading_5","subheading_6","suhbeading_7"),sep=":")%>%
+  dplyr::select(PMID,heading)%>%
+  mutate(heading=str_to_lower(str_squish(heading)))%>%
+  group_by(heading)%>%
+  count()
+
+waterfall_charts_1=original_automated_headings%>%
+  #dplyr::filter(grepl("as topic",heading))%>%
+  dplyr::filter(heading %in% pop_groups)%>%
   left_join(added_removal_summary,by="heading")%>%
   dplyr::select(heading,n,added,removed,sum)%>%
   mutate(added=ifelse(is.na(added),0,added))%>%
@@ -757,17 +829,69 @@ waterfall_charts=all_original_headings%>%
   mutate(group_id=as.numeric(group_id))%>%
   rownames_to_column(var="x_pos")%>%
   mutate(x_pos=as.numeric(x_pos))%>%
-  ggplot(aes(x=heading))+
-  geom_rect(aes(x=heading,
+  mutate(heading=fct_reorder(heading,n))%>%
+  ggplot(aes(x=reorder(heading,-n)))+
+  geom_rect(aes(
                 xmin=group_id-0.25,
                 xmax=group_id+0.25,
                 ymin=max,
                 ymax=min,
                 fill=name))+
-  geom_rect(aes(x=heading,
+  geom_rect(aes(
                 xmin=group_id-0.3,
                 xmax=group_id+0.3,
                 ymin=n,
-                ymax=n), colour="black")
+                ymax=n), colour="black")+
+    scale_x_discrete(drop=FALSE)+
+  theme_bw()+
+  theme(panel.grid.major.x =element_blank(),
+        legend.position = "bottom",
+        legend.title.align=0.5,
+        plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(angle=45,vjust=0.5))
   
-waterfall_charts
+waterfall_charts_1
+
+
+waterfall_charts_2=original_automated_headings%>%
+  #dplyr::filter(grepl("as topic",heading))%>%
+  dplyr::filter(heading %in% pop_groups)%>%
+  left_join(final_automated_headings,by="heading")%>%
+  left_join(added_removal_summary,by="heading")%>%
+  dplyr::select(heading,"original_n"=n.x,"final_n"=n.y,added,removed,sum)%>%
+  mutate(added=ifelse(is.na(added),0,added))%>%
+  mutate(removed=ifelse(is.na(removed),0,removed))%>%
+  mutate(sum=ifelse(is.na(sum),0,sum))%>%
+  dplyr::filter(!sum==0)%>%
+  dplyr::select(-sum)%>%
+  arrange(desc(final_n))%>%
+  rownames_to_column(var="group_id")%>%
+  pivot_longer(cols=c(5:6))%>%
+  mutate(min=ifelse(name=="removed",original_n-value,final_n-value))%>%
+  mutate(max=ifelse(name=="removed",original_n,final_n))%>%
+  dplyr::select(-value)%>%
+  mutate(group_id=as.numeric(group_id))%>%
+  rownames_to_column(var="x_pos")%>%
+  mutate(x_pos=as.numeric(x_pos))%>%
+  mutate(heading=fct_reorder(heading,final_n))%>%
+  mutate(name=fct_relevel(name,c("removed","added")))%>%
+  ggplot(aes(x=reorder(heading,-final_n)))+
+  geom_rect(aes(
+    xmin=group_id-0.25,
+    xmax=group_id+0.25,
+    ymin=max,
+    ymax=min,
+    fill=name),position = "dodge")+
+  geom_rect(aes(
+    xmin=group_id-0.4,
+    xmax=group_id,
+    ymin=original_n,
+    ymax=original_n), colour="black")+
+geom_rect(aes(
+  xmin=group_id,
+  xmax=group_id+0.4,
+  ymin=final_n,
+  ymax=final_n), colour="black")
+    
+
+waterfall_charts_2
