@@ -344,7 +344,7 @@ added_removal_summary=headingtype_changes%>%
 #Now we are going to look and see how long it took things to get changed
 correction_time=tbl%>%
   dplyr::filter(PMID %in% change_pmid)%>%
-  dplyr::filter(!PMID %in% weird_pmid)%>%
+  #dplyr::filter(!PMID %in% weird_pmid)%>%
   mutate(test=ifelse(nchar(DateRevised)==10,DateRevised,"fix"))%>%
   mutate(all_mesh=ifelse(test=="fix",DateRevised,all_mesh))%>%
   mutate(DateRevised=as.Date(DateRevised,format="%Y-%m-%d"))%>%
@@ -354,13 +354,13 @@ correction_time=tbl%>%
   mutate(DateCompleted=as.Date(DateCompleted,format="%Y-%m-%d"))%>%
   mutate(DateRevised=as.Date(DateRevised,format="%Y-%m-%d"))%>%
   dplyr::select(PMID,DateCompleted,DateRevised)%>%
-  mutate(interval=DateRevised-DateCompleted)%>%
-  drop_na(interval)
+  mutate(interval=DateRevised-DateCompleted)
+  #drop_na(interval)
 
 correction_time_for_headings=headingtype_changes%>%
   full_join(correction_time,by="PMID")%>%
   dplyr::select(PMID,check_tag,interval)%>%
-  drop_na(interval)%>%
+  #drop_na(interval)%>%
   mutate(check_tag=ifelse(is.na(check_tag),"No",check_tag))%>%
   distinct()%>%
   group_by(PMID)%>%
@@ -372,19 +372,20 @@ correction_time_for_headings=headingtype_changes%>%
   mutate(bin =ifelse(bin==0,1,bin))%>%
   group_by(check_tag)%>%
   count(bin)%>%
-  mutate(totals=ifelse(check_tag=="Yes",as.numeric(flowchart_checktag_change_Y),1753))%>% ###THESE NEED TO BE UPDATED.
+  mutate(totals=ifelse(check_tag=="Yes",as.numeric(flowchart_checktag_change_Y),1839))%>% ###THESE NEED TO BE UPDATED.
   mutate(percentage=((n/totals)*100))%>%
   dplyr::select(check_tag,bin,percentage)%>%
   ungroup()%>%
   mutate(check_tag=fct_relevel(check_tag,c("Yes","No")))%>%
   mutate(month=as.numeric(floor((bin-1)/4)))%>%
   mutate(axis_label=ifelse(month==0,paste("week", as.character(bin)), paste("month",month+1)))%>%
+  mutate(axis_label=ifelse(axis_label=="month 250","Unknown",axis_label))%>%
   dplyr::select(check_tag,axis_label,percentage)%>%
   group_by(axis_label,check_tag)%>%
   summarise(percentage_sum=sum(percentage))%>%
   ungroup()%>%
-  mutate(axis_label = factor(axis_label,levels = c("week 1","week 2","week 3","week 4","month 2","month 3","month 4","month 5","month 6","month 7","month 8","month 9")))%>%
-  mutate(facet=ifelse(grepl("month",axis_label),"Month 2-9","First Month"))%>%
+  mutate(axis_label = factor(axis_label,levels = c("week 1","week 2","week 3","week 4","month 2","month 3","month 4","month 5","month 6","month 7","month 8","month 9","Unknown")))%>%
+  mutate(facet=ifelse(grepl("month|Unknown",axis_label),"Month 2-9","First Month"))%>%
   mutate(facet=factor(facet,levels=c("First Month","Month 2-9")))%>%
   mutate(bar_label=as.character(round(percentage_sum,2)))
 
@@ -666,10 +667,10 @@ check_tag_plot=ggplot(correction_time_for_headings, aes(x=(axis_label),y=percent
   geom_text(aes(label=bar_label),position=position_dodge(width=0.9),vjust=-0.25,size=4)+
   xlab("Time Since Record Creation")+
   ylab("Percentage of Papers")+
-  ggtitle("When was the Indexing Updated on the Changed Records? \n(n=1969)")+
+  ggtitle("When was the Indexing Updated on the Changed Records? \n(n=2063)")+
   scale_y_continuous(expand=c(0,0),limits = c(0,100))+
   #scale_x_continuous(breaks=seq(1,25,1))+
-  scale_fill_manual(values=c("#59C6C8","#282F50"))+
+  scale_fill_manual(values=c("#785EF0","#B1AFB0"))+
   labs(fill="Did the Record have a \n Check Tag Changed?")+
   guides(fill = guide_legend(title.position = "top"))+
   theme_bw()+
@@ -679,6 +680,43 @@ check_tag_plot=ggplot(correction_time_for_headings, aes(x=(axis_label),y=percent
 check_tag_plot
 ggsave("results/plots/change_timeline.png",plot=check_tag_plot,height = 18.2, width =30, units = "cm")
 
+heading_type_list=c("As Topic","Check Tag","Population Groups","Regular Heading")
+heading_type_colours=c("#DC267F","#785EF0","#648FFF","#B1AFB0")
+
+
+for (i in 1:length(heading_type_list)){
+  title=paste0("Indexing Added for ",heading_type_list[i])
+  
+  indexing_added_plot=final_indexing_added%>%
+    mutate(population=ifelse(heading %in% pop_groups,"Yes","No"))%>%
+    dplyr::select(heading,population,check_tag,is_topic,added_percentage)%>%
+    pivot_longer(cols=c(2:4),names_to = "type",values_to = "test")%>%
+    mutate(fill_label=ifelse(type=="check_tag" & test=="Yes","Check Tag",ifelse(type=="is_topic" & test =="Yes","As Topic",ifelse(type=="population" & test=="Yes","Population Groups","Regular Heading"))))%>%
+    mutate(alpha_fill=ifelse(fill_label=="Regular Heading","alpha","no_alpha"))%>%
+    dplyr::filter(added_percentage!=0)%>%
+    mutate(text_label=ifelse(type=="is_topic" & test=="Yes",heading,ifelse(type=="population" & test=="Yes",heading,"")))%>%
+    mutate(text_label=ifelse(fill_label==heading_type_list[i],text_label," "))%>%
+    mutate(fill_label=ifelse(fill_label==heading_type_list[i],fill_label,"Regular Heading"))%>%
+  ggplot(aes(x=reorder(heading,-added_percentage),y=added_percentage,fill=fill_label,alpha=fill_label))+
+    geom_bar(position="dodge2",stat = "identity")+
+    geom_text(aes(label=text_label),angle=45,hjust=0,size=3)+
+    xlab("Heading")+
+    ylab("How often does the term appear \nafter curation? (%)")+
+    scale_y_continuous(expand=c(0,0),limits = c(0,100))+
+    scale_fill_manual(values=c(heading_type_colours[i],"gray"),labels=c(heading_type_list[i],"Regular Heading"),name="MeSH Type")+
+    scale_alpha_manual(values=c(1,0.2),guide="none")+
+    theme_bw()+
+    theme(panel.grid.major = element_blank(),
+          legend.position = "bottom",
+          legend.title.align=0.5,
+          plot.title = element_text(hjust = 0.5),
+          axis.text.x = element_blank(),
+          axis.ticks.x = element_blank())
+  
+  ggsave(paste0("results/plots/IndexingAdded",heading_type_list[[i]],".png"),plot=indexing_added_plot,height = 18.2, width =30, units = "cm")
+  
+}
+
 indexing_added_plot=final_indexing_added%>%
   mutate(population=ifelse(heading %in% pop_groups,"Yes","No"))%>%
   dplyr::select(heading,population,check_tag,is_topic,added_percentage)%>%
@@ -686,7 +724,7 @@ indexing_added_plot=final_indexing_added%>%
   mutate(fill_label=ifelse(type=="check_tag" & test=="Yes","Check Tag",ifelse(type=="is_topic" & test =="Yes","As Topic",ifelse(type=="population" & test=="Yes","Population Groups","Regular Heading"))))%>%
   mutate(alpha_fill=ifelse(fill_label=="Regular Heading","alpha","no_alpha"))%>%
   dplyr::filter(added_percentage!=0)%>%
-  mutate(text_label=ifelse(type=="is_topic" & test=="Yes",heading,ifelse(type=="population" & test=="Yes",heading,"")))%>%
+  mutate(text_label=ifelse(type=="is_topic" & test=="Yes",heading,ifelse(type=="population" & test=="Yes",heading,"")))
   ggplot(aes(x=reorder(heading,-added_percentage),y=added_percentage,fill=fill_label,alpha=alpha_fill))+
   geom_bar(position="dodge2",stat = "identity")+
   geom_text(aes(label=text_label),angle=45,hjust=0,size=3)+
