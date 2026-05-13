@@ -1,7 +1,7 @@
 library(tidyverse)
 library(lubridate)
 library(stringi)
-
+library(ggrepel)
 
 #load in all the text files and convert to csv that we can analyze 
 tbl <-
@@ -670,7 +670,7 @@ check_tag_plot=ggplot(correction_time_for_headings, aes(x=(axis_label),y=percent
   ggtitle("When was the Indexing Updated on the Changed Records? \n(n=2063)")+
   scale_y_continuous(expand=c(0,0),limits = c(0,100))+
   #scale_x_continuous(breaks=seq(1,25,1))+
-  scale_fill_manual(values=c("#785EF0","#B1AFB0"))+
+  scale_fill_manual(values=c("#2862fa","#B1AFB0"))+
   labs(fill="Did the Record have a \n Check Tag Changed?")+
   guides(fill = guide_legend(title.position = "top"))+
   theme_bw()+
@@ -681,7 +681,7 @@ check_tag_plot
 ggsave("results/plots/change_timeline.png",plot=check_tag_plot,height = 18.2, width =30, units = "cm")
 
 heading_type_list=c("As Topic","Check Tag","Population Groups","Regular Heading")
-heading_type_colours=c("#DC267F","#785EF0","#648FFF","#B1AFB0")
+heading_type_colours=c("#785EF0","#2862fa","#DC267F","#B1AFB0")
 
 
 for (i in 1:length(heading_type_list)){
@@ -699,81 +699,111 @@ for (i in 1:length(heading_type_list)){
     mutate(fill_label=ifelse(fill_label==heading_type_list[i],fill_label,"Regular Heading"))%>%
   ggplot(aes(x=reorder(heading,-added_percentage),y=added_percentage,fill=fill_label,alpha=fill_label))+
     geom_bar(position="dodge2",stat = "identity")+
-    geom_text(aes(label=text_label),angle=45,hjust=0,size=3)+
+    geom_text(aes(label=text_label),hjust=0,vjust=0.25,angle=45,size=3)+
     xlab("Heading")+
     ylab("How often does the term appear \nafter curation? (%)")+
-    scale_y_continuous(expand=c(0,0),limits = c(0,100))+
+    scale_y_continuous(expand=c(0,0.1),limits = c(0,100))+
     scale_fill_manual(values=c(heading_type_colours[i],"gray"),labels=c(heading_type_list[i],"Regular Heading"),name="MeSH Type")+
     scale_alpha_manual(values=c(1,0.2),guide="none")+
+    coord_cartesian(clip = "off")+
     theme_bw()+
     theme(panel.grid.major = element_blank(),
+          plot.margin = unit(c(10, 1, 1, 1), "lines"),
           legend.position = "bottom",
           legend.title.align=0.5,
-          plot.title = element_text(hjust = 0.5),
           axis.text.x = element_blank(),
-          axis.ticks.x = element_blank())
+          axis.ticks.x = element_blank(),
+          panel.border = element_blank(),
+          axis.line = element_line(color = 'black'))
   
   ggsave(paste0("results/plots/IndexingAdded",heading_type_list[[i]],".png"),plot=indexing_added_plot,height = 18.2, width =30, units = "cm")
   
 }
 
-indexing_added_plot=final_indexing_added%>%
+#Zoom in on the check tags 
+zoom_checktag_added_plot=final_indexing_added%>%
   mutate(population=ifelse(heading %in% pop_groups,"Yes","No"))%>%
   dplyr::select(heading,population,check_tag,is_topic,added_percentage)%>%
   pivot_longer(cols=c(2:4),names_to = "type",values_to = "test")%>%
   mutate(fill_label=ifelse(type=="check_tag" & test=="Yes","Check Tag",ifelse(type=="is_topic" & test =="Yes","As Topic",ifelse(type=="population" & test=="Yes","Population Groups","Regular Heading"))))%>%
   mutate(alpha_fill=ifelse(fill_label=="Regular Heading","alpha","no_alpha"))%>%
   dplyr::filter(added_percentage!=0)%>%
-  mutate(text_label=ifelse(type=="is_topic" & test=="Yes",heading,ifelse(type=="population" & test=="Yes",heading,"")))
-  ggplot(aes(x=reorder(heading,-added_percentage),y=added_percentage,fill=fill_label,alpha=alpha_fill))+
+  mutate(text_label=ifelse(type=="is_topic" & test=="Yes",heading,ifelse(type=="population" & test=="Yes",heading,"")))%>%
+  mutate(text_label=ifelse(fill_label=="Check Tag",text_label," "))%>%
+  mutate(fill_label=ifelse(fill_label=="Check Tag",fill_label,"Regular Heading"))
+  dplyr::filter(added_percentage<5)%>%
+  ggplot(aes(x=reorder(heading,-added_percentage),y=added_percentage,fill=fill_label,alpha=fill_label))+
   geom_bar(position="dodge2",stat = "identity")+
-  geom_text(aes(label=text_label),angle=45,hjust=0,size=3)+
+  geom_text(aes(label=text_label),hjust=0,vjust=0.25,angle=45,size=3,
+            position=position_jitter())+
   xlab("Heading")+
   ylab("How often does the term appear \nafter curation? (%)")+
-  scale_y_continuous(expand=c(0,0),limits = c(0,100))+
-  scale_fill_manual(values=c("#F707A4","#282F50","#59C6C8","gray"),labels=c("As Topic","Check Tag","Population Groups","Regular Heading"),name="MeSH Type")+
-  scale_alpha_manual(values=c(0.25,1),guide="none")+
+  scale_y_continuous(expand=c(0,0),limits = c(0,5))+
+  scale_fill_manual(values=c("#2862fa","gray"),labels=c("Check Tag","Regular Heading"),name="MeSH Type")+
+  scale_alpha_manual(values=c(1,0.2),guide="none")+
   theme_bw()+
   theme(panel.grid.major = element_blank(),
+        plot.margin = unit(c(10, 1, 1, 1), "lines"),
         legend.position = "bottom",
         legend.title.align=0.5,
-        plot.title = element_text(hjust = 0.5),
         axis.text.x = element_blank(),
-        axis.ticks.x = element_blank())
+        axis.ticks.x = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(color = 'black'))
 
-indexing_added_plot
+zoom_checktag_added_plot
 
+ggsave("results/plots/checktag_zoom_added.png", plot=zoom_checktag_added_plot,height = 18.2, width =30, units = "cm")
 
-ggsave("results/plots/added_terms.png",plot=indexing_added_plot,height = 18.2, width =30, units = "cm")
+#Now a loop for the removed stuff 
 
+for(i in 1:length(heading_type_list)){
+  title=paste0("Indexing Added for ",heading_type_list[i])
 
 indexing_removed_plot=orignal_indexing_removed%>%
   mutate(population=ifelse(heading %in% pop_groups,"Yes","No"))%>%
-  dplyr::select(heading,check_tag,is_topic,population,removed_percentage)%>%
+  dplyr::select(heading,population,check_tag,is_topic,removed_percentage)%>%
   pivot_longer(cols=c(2:4),names_to = "type",values_to = "test")%>%
   mutate(fill_label=ifelse(type=="check_tag" & test=="Yes","Check Tag",ifelse(type=="is_topic" & test =="Yes","As Topic",ifelse(type=="population" & test=="Yes","Population Groups","Regular Heading"))))%>%
   mutate(alpha_fill=ifelse(fill_label=="Regular Heading","alpha","no_alpha"))%>%
   dplyr::filter(removed_percentage!=0)%>%
   mutate(text_label=ifelse(type=="is_topic" & test=="Yes",heading,ifelse(type=="population" & test=="Yes",heading,"")))%>%
-  ggplot(aes(x=reorder(heading,-removed_percentage),y=removed_percentage,fill=fill_label,alpha=alpha_fill))+
+  mutate(text_label=ifelse(fill_label==heading_type_list[i],text_label," "))%>%
+  mutate(fill_label=ifelse(fill_label==heading_type_list[i],fill_label,"Regular Heading"))%>%
+  ggplot(aes(x=reorder(heading,-removed_percentage),y=removed_percentage,fill=fill_label,alpha=fill_label))+
   geom_bar(position="dodge2",stat = "identity")+
-  geom_text(aes(label=text_label),angle=45,hjust=0,size=3)+
+  geom_text(aes(label=text_label),hjust=0,vjust=0.25,angle=45,size=3)+
   xlab("Heading")+
   ylab("How often does the term dissapear \nafter curation? (%)")+
   scale_y_continuous(expand=c(0,0),limits = c(0,100))+
-  scale_fill_manual(values=c("#F707A4","#282F50","#59C6C8","gray"),labels=c("As Topic","Check Tag","Population Groups","Regular Heading"),name="MeSH Type")+
-  scale_alpha_manual(values=c(0.25,1),guide="none")+
+  scale_fill_manual(values=c(heading_type_colours[i],"gray"),labels=c(heading_type_list[i],"Regular Heading"),name="MeSH Type")+
+  scale_alpha_manual(values=c(1,0.2),guide="none")+
+  coord_cartesian(clip = "off")+
   theme_bw()+
   theme(panel.grid.major = element_blank(),
+        plot.margin = unit(c(10, 1, 1, 1), "lines"),
         legend.position = "bottom",
         legend.title.align=0.5,
-        plot.title = element_text(hjust = 0.5),
         axis.text.x = element_blank(),
-        axis.ticks.x = element_blank())
+        axis.ticks.x = element_blank(),
+        panel.border = element_blank(),
+        axis.line = element_line(color = 'black'))
 
-indexing_removed_plot
-ggsave("results/plots/removed_terms.png",plot=indexing_removed_plot,height = 18.2, width =30, units = "cm")
+ggsave(paste0("results/plots/IndexingRemoved",heading_type_list[[i]],".png"),plot=indexing_removed_plot,height = 18.2, width =30, units = "cm")
 
+}
+
+
+#get numbers to manually add to the plots
+manual_checktag_number=final_indexing_added%>%
+  mutate(population=ifelse(heading %in% pop_groups,"Yes","No"))%>%
+  dplyr::select(heading,population,check_tag,is_topic,added_percentage)%>%
+  dplyr::filter(check_tag=="Yes")
+
+manual_popualtion_numbers=final_indexing_added%>%
+  mutate(population=ifelse(heading %in% pop_groups,"Yes","No"))%>%
+  dplyr::select(heading,population,check_tag,is_topic,added_percentage)%>%
+  dplyr::filter(population=="Yes")
 
 #we need 3 numbers: number of times robot assigned term, number of times it had to be removed, number of times it had to be added
 
@@ -819,7 +849,7 @@ original_automated_headings=tbl%>%
   group_by(heading)%>%
   count()
 
-
+original_automated_headings_list=original_automated_headings$heading
 
 final_automated_headings=tbl%>%
   dplyr::filter(PMID %in% original_automated_pmids)%>%
@@ -848,7 +878,13 @@ final_automated_headings=tbl%>%
   group_by(heading)%>%
   count()
 
-waterfall_charts_1=original_automated_headings%>%
+
+new_headings_summary=final_automated_headings%>%
+  dplyr::filter(!heading %in% original_automated_headings_list)
+
+all_headings_combined=rbind(original_automated_headings,new_headings_summary)
+
+population_waterfall_chart=all_headings_combined%>%
   #dplyr::filter(grepl("as topic",heading))%>%
   dplyr::filter(heading %in% pop_groups)%>%
   left_join(added_removal_summary,by="heading")%>%
@@ -874,62 +910,121 @@ waterfall_charts_1=original_automated_headings%>%
                 xmax=group_id+0.25,
                 ymin=max,
                 ymax=min,
-                fill=name))+
+                fill=name),color="#DC267F")+
   geom_rect(aes(
                 xmin=group_id-0.3,
                 xmax=group_id+0.3,
-                ymin=n,
-                ymax=n), colour="black")+
-    scale_x_discrete(drop=FALSE)+
+                ymin=n-0.1,
+                ymax=n+0.1), colour="black")+
+  scale_x_discrete(drop=FALSE)+
+  xlab("Heading")+
+  ylab("Number of Records")+
+  scale_alpha_manual(values=c(1,0.5))+
+  scale_fill_manual(values=c("#DC267F","white"),labels=c("Added","Removed"),name="Change Type")+
   theme_bw()+
   theme(panel.grid.major.x =element_blank(),
         legend.position = "bottom",
         legend.title.align=0.5,
         plot.title = element_text(hjust = 0.5),
-        axis.text.x = element_text(angle=45,vjust=0.5))
+        axis.text.x = element_text(angle=45,vjust=1,hjust=1))
   
-waterfall_charts_1
+population_waterfall_chart
 
+ggsave("results/plots/population_number_change.png", plot=population_waterfall_chart,height = 18.2, width =30, units = "cm")
 
-waterfall_charts_2=original_automated_headings%>%
+checktag_waterfall_chart=all_headings_combined%>%
   #dplyr::filter(grepl("as topic",heading))%>%
-  dplyr::filter(heading %in% pop_groups)%>%
-  left_join(final_automated_headings,by="heading")%>%
+  dplyr::filter(heading %in% check_tags)%>%
   left_join(added_removal_summary,by="heading")%>%
-  dplyr::select(heading,"original_n"=n.x,"final_n"=n.y,added,removed,sum)%>%
+  dplyr::select(heading,n,added,removed,sum)%>%
   mutate(added=ifelse(is.na(added),0,added))%>%
   mutate(removed=ifelse(is.na(removed),0,removed))%>%
   mutate(sum=ifelse(is.na(sum),0,sum))%>%
   dplyr::filter(!sum==0)%>%
   dplyr::select(-sum)%>%
-  arrange(desc(final_n))%>%
+  arrange(desc(n))%>%
   rownames_to_column(var="group_id")%>%
-  pivot_longer(cols=c(5:6))%>%
-  mutate(min=ifelse(name=="removed",original_n-value,final_n-value))%>%
-  mutate(max=ifelse(name=="removed",original_n,final_n))%>%
+  pivot_longer(cols=c(4:5))%>%
+  mutate(min=ifelse(name=="removed",n-value,n))%>%
+  mutate(max=ifelse(name=="removed",n,n+value))%>%
   dplyr::select(-value)%>%
   mutate(group_id=as.numeric(group_id))%>%
   rownames_to_column(var="x_pos")%>%
   mutate(x_pos=as.numeric(x_pos))%>%
-  mutate(heading=fct_reorder(heading,final_n))%>%
-  mutate(name=fct_relevel(name,c("removed","added")))%>%
-  ggplot(aes(x=reorder(heading,-final_n)))+
+  mutate(heading=fct_reorder(heading,n))%>%
+  ggplot(aes(x=reorder(heading,-n)))+
   geom_rect(aes(
     xmin=group_id-0.25,
     xmax=group_id+0.25,
     ymin=max,
     ymax=min,
-    fill=name),position = "dodge")+
+    fill=name),color="#2862fa")+
   geom_rect(aes(
-    xmin=group_id-0.4,
-    xmax=group_id,
-    ymin=original_n,
-    ymax=original_n), colour="black")+
-geom_rect(aes(
-  xmin=group_id,
-  xmax=group_id+0.4,
-  ymin=final_n,
-  ymax=final_n), colour="black")
-    
+    xmin=group_id-0.3,
+    xmax=group_id+0.3,
+    ymin=n-0.1,
+    ymax=n+0.1), colour="black")+
+  scale_x_discrete(drop=FALSE)+
+  xlab("Heading")+
+  ylab("Number of Records")+
+  scale_alpha_manual(values=c(1,0.5))+
+  scale_fill_manual(values=c("#2862fa","white"),labels=c("Added","Removed"),name="Change Type")+
+  theme_bw()+
+  theme(panel.grid.major.x =element_blank(),
+        legend.position = "bottom",
+        legend.title.align=0.5,
+        plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(angle=45,vjust=1,hjust=1))
 
-waterfall_charts_2
+checktag_waterfall_chart
+
+ggsave("results/plots/checktag_number_change.png", plot=checktag_waterfall_chart,height = 18.2, width =30, units = "cm")
+
+astopic_waterfall_chart=all_headings_combined%>%
+  dplyr::filter(grepl("as topic",heading))%>%
+  left_join(added_removal_summary,by="heading")%>%
+  dplyr::select(heading,n,added,removed,sum)%>%
+  mutate(added=ifelse(is.na(added),0,added))%>%
+  mutate(removed=ifelse(is.na(removed),0,removed))%>%
+  mutate(sum=ifelse(is.na(sum),0,sum))%>%
+  dplyr::filter(!sum==0)%>%
+  dplyr::select(-sum)%>%
+  arrange(desc(n))%>%
+  rownames_to_column(var="group_id")%>%
+  pivot_longer(cols=c(4:5))%>%
+  mutate(min=ifelse(name=="removed",n-value,n))%>%
+  mutate(max=ifelse(name=="removed",n,n+value))%>%
+  dplyr::select(-value)%>%
+  mutate(group_id=as.numeric(group_id))%>%
+  rownames_to_column(var="x_pos")%>%
+  mutate(x_pos=as.numeric(x_pos))%>%
+  mutate(heading=fct_reorder(heading,n))%>%
+  ggplot(aes(x=reorder(heading,-n)))+
+  geom_rect(aes(
+    xmin=group_id-0.25,
+    xmax=group_id+0.25,
+    ymin=max,
+    ymax=min,
+    fill=name),color="#785EF0")+
+  geom_rect(aes(
+    xmin=group_id-0.3,
+    xmax=group_id+0.3,
+    ymin=n-0.1,
+    ymax=n+0.1), colour="black")+
+  scale_x_discrete(drop=FALSE)+
+  xlab("Heading")+
+  ylab("Number of Records")+
+  scale_alpha_manual(values=c(1,0.5))+
+  scale_fill_manual(values=c("#785EF0","white"),labels=c("Added","Removed"),name="Change Type")+
+  theme_bw()+
+  theme(panel.grid.major.x =element_blank(),
+        legend.position = "bottom",
+        legend.title.align=0.5,
+        plot.title = element_text(hjust = 0.5),
+        axis.text.x = element_text(angle=45,vjust=1,hjust=1))
+
+astopic_waterfall_chart
+
+
+ggsave("results/plots/astopic_number_change.png", plot=astopic_waterfall_chart,height = 18.2, width =30, units = "cm")
+
